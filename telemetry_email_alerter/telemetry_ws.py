@@ -18,6 +18,7 @@ DATE_FORMAT = '%Y-%m-%d %H:%M:%S %Z'
 GET = 'get'
 SUBSCRIBE = 'subscribe'
 NOTIFY_METHOD = 'syslog' # 'syslog' or 'smtp'
+syslogserver = 'testing'
 
 class TelemetryWs(object):
     """
@@ -78,7 +79,7 @@ class TelemetryWs(object):
         self.events_token = None
         self.socket.on_open = self.on_run
 
-    def on_run(self, _):
+    def on_run(self):
         """
         Methods to run when the ws connects
         """
@@ -128,7 +129,7 @@ class TelemetryWs(object):
         token = SHA256.new(seed).hexdigest()[0:38]
         return token
 
-    def on_message(self, _, message):
+    def on_message(self, message):
         """
         Print message received from websocket
         """
@@ -242,5 +243,6 @@ class TelemetryWs(object):
             'Description: {}'.format(desc),
             'View Event at {}/telemetry/events/{}'.format(self.config.telemetryUrl, key),
         ])
-
+        print '-------------'
         print body
+
