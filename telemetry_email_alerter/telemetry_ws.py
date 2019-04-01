@@ -17,7 +17,7 @@ AUTH_PATH = 'cvpservice/login/authenticate.do'
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S %Z'
 GET = 'get'
 SUBSCRIBE = 'subscribe'
-
+NOTIFY_METHOD = 'syslog' # 'syslog' or 'smtp'
 
 class TelemetryWs(object):
     """
@@ -77,26 +77,6 @@ class TelemetryWs(object):
         self.devices_sub_token = None
         self.events_token = None
         self.socket.on_open = self.on_run
-
-        # Ensure SMTP connection works.
-        smtp_server = self.connect_to_smtp_server()
-        smtp_server.quit()
-
-    def connect_to_smtp_server(self):
-        smtp_class = smtplib.SMTP if self.config.noSmtpSsl else smtplib.SMTP_SSL
-        server = smtp_class(self.config.smtpServer, self.config.port)
-
-        debug_level = 1 if self.config.verbose else 0
-        server.set_debuglevel(debug_level)
-
-        if self.config.smtpUsername:
-            try:
-                server.login(self.config.smtpUsername, self.passwords['smtpPassword'])
-            except Exception as e:
-                logging.exception(e)
-                exit()
-
-        return server
 
     def on_run(self, _):
         """
@@ -166,11 +146,9 @@ class TelemetryWs(object):
                         continue
                     for key, update in notification['updates'].items():
                         event_updates.append(update['value'])
-
             if len(event_updates) != 0:
-                smtp_server = self.connect_to_smtp_server()
                 for event in event_updates:
-                    self.send_email(event, smtp_server)
+                    self.send_log(event, syslogserver)
         elif (
                 data['token'] == self.devices_get_token
                 or data['token'] == self.devices_sub_token
@@ -237,11 +215,11 @@ class TelemetryWs(object):
 
         logging.info('Received devices. Total device count is {}.'.format(len(self.devices)))
 
-    def send_email(self, event, smtp_server):
+    def send_log(self, event, syslogserver):
         """
-        Send an email using variables above
+        Send a syslog message using variables above
         """
-        logging.debug('Preparing email notification.')
+        logging.debug('Preparing log notification.')
 
         data = event['data']
 
@@ -265,22 +243,4 @@ class TelemetryWs(object):
             'View Event at {}/telemetry/events/{}'.format(self.config.telemetryUrl, key),
         ])
 
-        message = MIMEText(body, 'plain', 'utf-8')
-
-        email_sender = self.config.sendToAddress[0]
-        if self.config.smtpUsername and '@' in self.config.smtpUsername:
-            email_sender = self.config.smtpUsername
-
-        message['From'] = email_sender
-        message['To'] = ','.join(self.config.sendToAddress)
-        if self.config.sendCcAddress:
-            message['Cc'] = ','.join(self.config.sendCcAddress)
-        message['Subject'] = '{} {}: {} on {}'.format(self.config.subjectPrefix, severity, title, event_location)
-        message['Date'] = formatdate(localtime=True)
-
-        smtp_server.sendmail(
-            email_sender,
-            self.config.sendToAddress,
-            message.as_string(),
-        )
-        logging.info('Email sent for event: {} {}'.format(severity, title))
+        print body
